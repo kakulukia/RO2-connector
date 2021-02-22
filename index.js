@@ -10,8 +10,16 @@ const WebSocket = require('ws');
 // Note: Ensure you have a .env file and include the MicrosoftAppId and MicrosoftAppPassword.
 const ENV_FILE = path.join(__dirname, '.env');
 require('dotenv').config({ path: ENV_FILE });
+const fs = require('fs');
 
 const restify = require('restify');
+const ACData = require("adaptivecards-templating");
+const redis = require("redis");
+const redisClient = redis.createClient();
+
+redisClient.on("error", function(error) {
+    console.error(error);
+});
 
 // Import required bot services.
 // See https://aka.ms/bot-services to learn more about the different parts of a bot.
@@ -47,6 +55,7 @@ adapter.onTurnError = async(context, error) => {
     await context.sendActivity('The bot encountered an error or bug.');
     await context.sendActivity('To continue to run this bot, please fix the bot source code.');
 };
+
 
 // Create the main dialog.
 const conversationReferences = {};
@@ -96,10 +105,10 @@ let socket = new WebSocket("ws://192.168.188.33:8080");
 
 // message received - show the message in div#messages
 socket.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    if (data.event === "result") {
-        sendStuff('Da hat wieder einer Hilfe geschrien!');
-    }
+    // const data = JSON.parse(event.data);
+    // if (data.event === "result") {
+    //     sendStuff('Da hat wieder einer Hilfe geschrien!');
+    // }
 }
 
 async function sendStuff(message) {
@@ -110,38 +119,35 @@ async function sendStuff(message) {
     }
 };
 
-async function sendMoreStuff(message) {
-    for (const conversationReference of Object.values(bot.conversationReferences)) {
-        await adapter.continueConversation(conversationReference, async turnContext => {
+async function sendAlarm(message) {
+    await adapter.continueConversation(bot.conversationReferences[message.target], async turnContext => {
 
-            const value = { count: 0 };
-            const card = CardFactory.heroCard(
-                'Neuer Alarm von Sensor XY updates!',
-                null, [{
-                    type: ActionTypes.MessageBack,
-                    title: 'Annehmen',
-                    value: value,
-                    text: 'Annehmen'
-                }, {
-                    type: ActionTypes.MessageBack,
-                    title: 'Erledigt',
-                    value: value,
-                    text: 'Erledigt'
-                }]);
 
-            bums = MessageFactory.attachment(card);
+        var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplate.json', 'utf-8').toString()));
 
-            // dings = await turnContext.sendActivity(bums);
-            // console.log('Nachrichtenantwortsdings:');
-            // console.log(dings);
 
-            const newActivity = MessageFactory.text('The new text for the activity');
-            // bums.id = '1612525533661';
-            // await turnContext.updateActivity(bums);
-            turnContext.sendActivity(newActivity);
+        const alarmData = {
+            from: message.e_from.replace('pointomega/redone/mod/', ''),
+            id: message.e_id,
+            error_class: message.a_class,
+            text: message.a_text,
+            priority: message.a_prio,
+            status: "Neu",
+            user: null,
+            activityID: null,
+            target: message.target
+        };
 
+
+
+        var card = template.expand({
+            $root: alarmData
         });
-    }
+
+        const response = await turnContext.sendActivity({ attachments: [CardFactory.adaptiveCard(card)] });
+        alarmData.activityID = response.id;
+        redisClient.set(alarmData.id, JSON.stringify(alarmData));
+    });
 };
 
 
@@ -172,10 +178,12 @@ client.on("error", function(error) {
 client.subscribe(mod_all_topic, { qos: 1 });
 client.subscribe(event_topic, { qos: 1 });
 
-client.on('message', function(topic, message, packet) {
-    console.log(`${topic}: ${message}`);
-    if (message.e_name === "ALARM") {
-
+client.on('message', (topic, message, packet) => {
+    // console.log(`${topic}: ${message}`);
+    message = JSON.parse(message.toString());
+    if (message.e_name === "Alarm") {
+        message.target = choose(Object.keys(bot.conversationReferences));
+        sendAlarm(message);
     }
 });
 
@@ -198,3 +206,8 @@ const registration_message = {
 // register the bot with RedOne
 client.publish(event_topic, JSON.stringify(registration_message), message_options)
 client.subscribe('pointomega/redone/mod/RO-Bot', { qos: 1 });
+
+function choose(choices) {
+    var index = Math.floor(Math.random() * choices.length);
+    return choices[index];
+}

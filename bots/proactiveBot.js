@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
-const { ActivityHandler, TurnContext, ConsoleTranscriptLogger, CardFactory, ActionTypes, TeamsInfo } = require('botbuilder');
+const { BotFrameworkAdapter, ActivityHandler, TurnContext, ConsoleTranscriptLogger, CardFactory, ActionTypes, TeamsInfo, MessageFactory, ActivityFactory } = require('botbuilder');
 const ACData = require("adaptivecards-templating");
 var AdaptiveCards = require("adaptivecards");
 
@@ -10,6 +10,18 @@ const path = require('path');
 // Note: Ensure you have a .env file and include the MicrosoftAppId and MicrosoftAppPassword.
 const ENV_FILE = path.join(__dirname, '.env');
 require('dotenv').config({ path: ENV_FILE });
+
+const adapter = new BotFrameworkAdapter({
+    appId: process.env.MicrosoftAppId,
+    appPassword: process.env.MicrosoftAppPassword
+});
+
+const redis = require("redis");
+const redisClient = redis.createClient();
+
+redisClient.on("error", function(error) {
+    console.error(error);
+});
 
 class ProactiveBot extends ActivityHandler {
     constructor(conversationReferences) {
@@ -31,20 +43,6 @@ class ProactiveBot extends ActivityHandler {
             await next();
         });
 
-        // this.onTurn(async(turnContext, next) => {
-
-        //     turnContext.onSendActivities(async(ctx, activities, nextSend) => {
-        //         activities.forEach(async(activity) => {
-        //             console.log('Gesendete Aktivität:');
-        //             console.log(activity);
-        //             if (activity.channelData.saveMe) {
-        //                 this.savedActivity = activity;
-        //             }
-        //         });
-        //         return await nextSend();
-        //     });
-        // });
-
         this.onMembersAdded(async(context, next) => {
             const membersAdded = context.activity.membersAdded;
 
@@ -52,10 +50,24 @@ class ProactiveBot extends ActivityHandler {
             await next();
         });
 
+        this.onTurn = async(turnContext) => {
+
+            // turnContext.onSendActivities(async(ctx, activities, nextSend) => {
+            //     activities.forEach(async(activity) => {
+            //         if (activity.channelData.saveMe) {
+            //             this.savedActivity = activity;
+            //         }
+            console.log('turning ..');
+            //     });
+            //     return await nextSend();
+            // });
+        };
+
         this.onMessage(async(context, next) => {
 
             let message = context.activity.text || context.activity.value.text
 
+            const activity = context.activity;
             switch (message.replace(/<.*>/i, '').trim()) {
                 case 'add':
                     await this.addConversation(context);
@@ -65,6 +77,48 @@ class ProactiveBot extends ActivityHandler {
                     break;
                 case 'list':
                     await this.sendStatusCard(context)
+                    break;
+                case 'Annehmen':
+                    redisClient.get(context.activity.value.id, async(err, reply) => {
+                        let alarmData = JSON.parse(reply);
+                        var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplate.json', 'utf-8').toString()));
+
+                        alarmData.status = `in Bearbeitung (${activity.from.name})`
+                        var card = template.expand({
+                            $root: alarmData
+                        });
+                        await adapter.continueConversation(this.conversationReferences[alarmData.target], async turnContext => {
+
+                            await turnContext.updateActivity({
+                                attachments: [CardFactory.adaptiveCard(card)],
+                                id: alarmData.activityID,
+                                type: "message"
+                            });
+                            // console.log(MessageFactory.attachment(CardFactory.adaptiveCard(card)))
+                        })
+                        redisClient.set(alarmData.id, JSON.stringify(alarmData));
+                    });
+                    break;
+                case 'Erledigt':
+                    redisClient.get(context.activity.value.id, async(err, reply) => {
+                        let alarmData = JSON.parse(reply);
+                        var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplate.json', 'utf-8').toString()));
+
+                        alarmData.status = `Erledigt (${activity.from.name})`
+                        var card = template.expand({
+                            $root: alarmData
+                        });
+                        await adapter.continueConversation(this.conversationReferences[alarmData.target], async turnContext => {
+
+                            await turnContext.updateActivity({
+                                attachments: [CardFactory.adaptiveCard(card)],
+                                id: alarmData.activityID,
+                                type: "message"
+                            });
+                            // console.log(MessageFactory.attachment(CardFactory.adaptiveCard(card)))
+                        })
+                        redisClient.set(alarmData.id, JSON.stringify(alarmData));
+                    });
                     break;
                 default:
                     // By default for unknown activity sent by user show

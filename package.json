@@ -25,6 +25,7 @@
         "moment": "^2.29.1",
         "mqtt": "^4.2.6",
         "path": "^0.12.7",
+        "redis": "^3.0.2",
         "restify": "~8.5.1"
     },
     "devDependencies": {
