@@ -183,6 +183,7 @@ client.on('message', (topic, message, packet) => {
     message = JSON.parse(message.toString());
     if (message.e_name === "Alarm") {
         message.target = choose(Object.keys(bot.conversationReferences));
+        console.log(message);
         sendAlarm(message);
     }
 });

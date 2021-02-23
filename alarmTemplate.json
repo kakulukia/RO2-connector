@@ -14,7 +14,8 @@
             "type": "FactSet",
             "facts": [{
                     "title": "Quelle:",
-                    "value": "${from}"
+                    "value": "${from}",
+                    "$when": "${false}"
                 },
                 {
                     "title": "ID:",

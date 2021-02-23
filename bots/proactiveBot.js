@@ -84,6 +84,8 @@ class ProactiveBot extends ActivityHandler {
                         var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplate.json', 'utf-8').toString()));
 
                         alarmData.status = `in Bearbeitung (${activity.from.name})`
+                        alarmData.started = new Date().toISOString()
+                        alarmData.user = activity.from.name
                         var card = template.expand({
                             $root: alarmData
                         });
@@ -102,9 +104,11 @@ class ProactiveBot extends ActivityHandler {
                 case 'Erledigt':
                     redisClient.get(context.activity.value.id, async(err, reply) => {
                         let alarmData = JSON.parse(reply);
-                        var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplate.json', 'utf-8').toString()));
+                        var template = new ACData.Template(JSON.parse(fs.readFileSync('alarmTemplateDone.json', 'utf-8').toString()));
 
-                        alarmData.status = `Erledigt (${activity.from.name})`
+                        alarmData.status = `Erledigt`
+                        alarmData.user = activity.from.name
+                        alarmData.done = new Date().toISOString()
                         var card = template.expand({
                             $root: alarmData
                         });
@@ -118,6 +122,7 @@ class ProactiveBot extends ActivityHandler {
                             // console.log(MessageFactory.attachment(CardFactory.adaptiveCard(card)))
                         })
                         redisClient.set(alarmData.id, JSON.stringify(alarmData));
+                        console.log(alarmData);
                     });
                     break;
                 default:
@@ -215,6 +220,7 @@ class ProactiveBot extends ActivityHandler {
         let facts = []
 
         var channels = await TeamsInfo.getTeamChannels(context);
+        var teamInfo = await TeamsInfo.getTeamDetails(context);
         channels.forEach(channel => {
             if (this.conversationReferences[channel.id] != undefined) {
                 facts.push({ name: channel.name || 'Allgemein', id: channel.id })
@@ -229,7 +235,7 @@ class ProactiveBot extends ActivityHandler {
                     "type": "TextBlock",
                     "size": "Medium",
                     "weight": "Bolder",
-                    "text": "RO-Bot Kanalübersicht"
+                    "text": `RO-Bot Kanalübersicht für Team ${teamInfo.name}`
                 },
                 {
                     "type": "TextBlock",
