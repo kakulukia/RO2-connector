@@ -31,14 +31,16 @@ class ProactiveBot extends ActivityHandler {
         console.log(this.appId);
 
         this.conversationReferences = JSON.parse(fs.readFileSync('channelReference.json', 'utf-8').toString());
+        this.channels = JSON.parse(fs.readFileSync('channels.json', 'utf-8').toString());
 
         console.log('init:');
         console.log(Object.keys(this.conversationReferences));
+        console.log(this.channels);
 
         this.onConversationUpdate(async(context, next) => {
-            this.updateConversationReference(context.activity);
+            this.updateConversationReference(context);
 
-            console.log('Converesation update!');
+            console.log('Conversation update!');
 
             await next();
         });
@@ -156,21 +158,44 @@ class ProactiveBot extends ActivityHandler {
         });
     }
 
-    updateConversationReference(activity) {
+    async updateConversationReference(context) {
 
         //check if its related to the bot?
         console.log("Conversation update..");
-
+        
+        const activity = context.activity;
         const conversationReference = TurnContext.getConversationReference(activity);
-        if (activity.membersAdded === undefined && activity.membersRemoved === undefined) return;
+        var teamInfo = await TeamsInfo.getTeamDetails(context);
 
-        if (activity.membersAdded && activity.membersAdded[0].id.includes(this.appId)) {
-            this.conversationReferences[conversationReference.conversation.id] = conversationReference;
-        }
-        if (activity.membersRemoved && activity.membersRemoved[0].id.includes(this.appId)) {
-            delete this.conversationReferences[conversationReference.conversation.id];
+        switch (activity.channelData.eventType) {
+            case "channelRenamed":
+                if (!this.channels[teamInfo.name]) {
+                    this.channels[teamInfo.name] = {}
+                }
+                this.channels[teamInfo.name][activity.channelData.channel.id] = activity.channelData.channel.name;
+                break;
+
+            case "teamMemberAdded":
+                console.log("adding member");
+                if (activity.membersAdded[0].id.includes(this.appId)) {
+                    this.conversationReferences[conversationReference.conversation.id] = conversationReference;
+                }
+
+                this.channels[teamInfo.name] = {};
+                this.channels[teamInfo.name][activity.channelData.team.id] = "Allgemein";
+                break;
+            
+            case "teamMemberRemoved":
+                console.log("removing member");
+                if (activity.membersRemoved[0].id.includes(this.appId)) {
+                    delete this.conversationReferences[conversationReference.conversation.id];
+                }
+                delete this.channels[teamInfo.name]
+                break;
         }
         this.saveConversations();
+        this.saveChannels();
+
     }
 
     async addConversation(context) {
@@ -188,7 +213,23 @@ class ProactiveBot extends ActivityHandler {
         }
         this.conversationReferences[conversationReference.conversation.id] = conversationReference;
 
+
+        // also add to internal channels list
+        var teamInfo = await TeamsInfo.getTeamDetails(context);
+        var teamChannels = await TeamsInfo.getTeamChannels(context);
+       
+        if (!this.channels[teamInfo.name]) {
+            this.channels[teamInfo.name] = {}
+        }
+
+        teamChannels.forEach(channel => {
+            if (channel.id === context.activity.channelData.channel.id) {
+                this.channels[teamInfo.name][channel.id] = channel.name || 'Allgemein';
+            }
+        });
+
         this.saveConversations();
+        this.saveChannels();
     }
 
     async removeConversation(context) {
@@ -203,7 +244,13 @@ class ProactiveBot extends ActivityHandler {
         }
         delete this.conversationReferences[conversationReference.conversation.id];
 
+        // also delete from channels list
+        for (const team of Object.keys(this.channels)) {
+            delete this.channels[team][conversationReference.conversation.id];
+        }
+
         this.saveConversations();
+        this.saveChannels();
     }
 
     saveConversations() {
@@ -215,17 +262,30 @@ class ProactiveBot extends ActivityHandler {
         });
         console.log(Object.keys(this.conversationReferences));
     }
+    saveChannels() {
+        const data = JSON.stringify(this.channels);
+        fs.writeFile('channels.json', data, (err) => {
+            if (err) {
+                throw err;
+            }
+        });
+        console.log(this.channels);
+    }
 
     async sendStatusCard(context) {
         let facts = []
 
-        var channels = await TeamsInfo.getTeamChannels(context);
-        var teamInfo = await TeamsInfo.getTeamDetails(context);
-        channels.forEach(channel => {
-            if (this.conversationReferences[channel.id] != undefined) {
-                facts.push({ name: channel.name || 'Allgemein', id: channel.id })
+        for (const teamName of Object.keys(this.channels)) {
+            for (const channelId of Object.keys(this.channels[teamName])) {
+                {
+                    facts.push({ 
+                        name: this.channels[teamName][channelId] || 'Allgemein', 
+                        id: channelId, 
+                        team: teamName 
+                    })
+                }
             }
-        });
+        }
 
         var template = new ACData.Template({
             // Card Template JSON
@@ -235,7 +295,7 @@ class ProactiveBot extends ActivityHandler {
                     "type": "TextBlock",
                     "size": "Medium",
                     "weight": "Bolder",
-                    "text": `RO-Bot Kanalübersicht für Team ${teamInfo.name}`
+                    "text": `RO-Bot Kanalübersicht`
                 },
                 {
                     "type": "TextBlock",
@@ -244,31 +304,19 @@ class ProactiveBot extends ActivityHandler {
                 },
                 {
                     "type": "Container",
+                    "$data": facts,
                     "items": [{
-                        "type": "ColumnSet",
-                        "$data": facts,
-                        "columns": [{
-                                "type": "Column",
-                                "width": "100px",
-                                "separator": true,
-                                "items": [{
-                                    "type": "TextBlock",
-                                    "wrap": true,
-                                    "text": "${name}:",
-                                    "weight": "Bolder"
-                                }]
-                            },
-                            {
-                                "type": "Column",
-                                "width": "stretch",
-                                "items": [{
-                                    "type": "TextBlock",
-                                    "text": "${id}",
-                                    "wrap": true
-                                }]
-                            }
-                        ]
+                        "type": "TextBlock",
+                        "wrap": true,
+                        "text": "${team} / ${name}:",
+                        "weight": "Bolder"
+                    },{
+                        "type": "TextBlock",
+                        "text": "${id}",
+                        "wrap": true,
+                        "spacing": "None"
                     }]
+                         
                 },
                 {
                     "type": "ActionSet",
