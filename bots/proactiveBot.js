@@ -5,12 +5,9 @@ const {
   BotFrameworkAdapter,
   ActivityHandler,
   TurnContext,
-  ConsoleTranscriptLogger,
   CardFactory,
   ActionTypes,
   TeamsInfo,
-  MessageFactory,
-  ActivityFactory,
 } = require("botbuilder");
 const ACData = require("adaptivecards-templating");
 var AdaptiveCards = require("adaptivecards");
@@ -45,8 +42,9 @@ function choose(choices) {
 ///////////////////////////////////////////////////////////////////////////////////////////////
 var mqtt = require("mqtt");
 const { type } = require("os");
+const botName = "RO-bot"
 const options = {
-  clientId: "RO-bot",
+  clientId: botName,
   username: "p0int0megA",
   password: "hm49DG275$wPkd7B",
   clean: true,
@@ -65,30 +63,20 @@ mqttClient.subscribe(srvTopic, { qos: 1 });
 mqttClient.subscribe(botTopic, { qos: 1 });
 
 mqttClient.on("connect", function () {
-  console.log("mqtt connected ..");
+  console.log("Connected to RedOne ..");
 });
 
-var message_options = {
-  //   retain: true,
-  qos: 1,
-};
-const registration_message = {
-  e_type: "IND",
-  e_name: "Register",
-  e_from: botTopic,
-  e_id: Date.now(),
-  m_name: "RO-Bot",
-  m_role: "1",
-};
-
 // register the bot with RedOne
+// using a timeout since otherwise the subscription is to slow to catch the confirmation message :)
 setTimeout(function () {
-  mqttClient.publish(
-    srvTopic,
-    JSON.stringify(registration_message),
-    message_options
-  );
+  postMessage({
+    e_type: "IND",
+    e_name: "Register",
+    m_role: "1"
+  });
 }, 500);
+
+
 
 class ProactiveBot extends ActivityHandler {
   constructor() {
@@ -104,15 +92,14 @@ class ProactiveBot extends ActivityHandler {
     );
 
     mqttClient.on("message", (topic, message, packet) => {
+      console.log(`${topic}: ${message}`);
       if (topic === botTopic) {
-        console.log(`${topic}: ${message}`);
         message = JSON.parse(message.toString());
         if (message.e_type === "REQ" && message.e_name === "Notify") {
           if (Object.entries(this.conversationReferences).length === 0) {
             console.log("Keine channel registriert!");
           } else {
             message.target = choose(Object.keys(this.conversationReferences));
-            // console.log(message);
             this.sendAlarm(message);
           }
         }
@@ -125,9 +112,6 @@ class ProactiveBot extends ActivityHandler {
 
     this.onConversationUpdate(async (context, next) => {
       this.updateConversationReference(context);
-
-      console.log("Conversation update!");
-
       await next();
     });
 
@@ -137,18 +121,6 @@ class ProactiveBot extends ActivityHandler {
       // By calling next() you ensure that the next BotHandler is run.
       await next();
     });
-
-    this.onTurn = async (turnContext) => {
-      // turnContext.onSendActivities(async(ctx, activities, nextSend) => {
-      //     activities.forEach(async(activity) => {
-      //         if (activity.channelData.saveMe) {
-      //             this.savedActivity = activity;
-      //         }
-      console.log("turning ..");
-      //     });
-      //     return await nextSend();
-      // });
-    };
 
     this.onMessage(async (context, next) => {
       let message = context.activity.text || context.activity.value.text;
@@ -212,26 +184,18 @@ class ProactiveBot extends ActivityHandler {
                   id: alarmData.activityID,
                   type: "message",
                 });
-                // console.log(MessageFactory.attachment(CardFactory.adaptiveCard(card)))
               }
             );
             redisClient.set(alarmData.id, JSON.stringify(alarmData));
 
-            // send confirmation to RedOne
-            var acceptMessage = {
+            // send accept message to RedOne
+            postMessage({
               e_type: "IND",
               e_name: "Accept",
-              e_from: botTopic,
-              e_id: Date.now(),
               a_id: alarmData.id,
               t_id: alarmData.targetId,
               t_code: "0",
-            };
-            mqttClient.publish(
-              srvTopic,
-              JSON.stringify(acceptMessage),
-              message_options
-            );
+            });
           });
           break;
         case "Erledigt":
@@ -272,27 +236,18 @@ class ProactiveBot extends ActivityHandler {
                   id: alarmData.activityID,
                   type: "message",
                 });
-                // console.log(MessageFactory.attachment(CardFactory.adaptiveCard(card)))
               }
             );
             redisClient.set(alarmData.id, JSON.stringify(alarmData));
-            console.log(alarmData);
 
             // send confirmation to RedOne
-            var doneMessage = {
+            postMessage({
               e_type: "IND",
               e_name: "Done",
-              e_from: botTopic,
-              e_id: Date.now(),
               a_id: alarmData.id,
               t_id: alarmData.targetId,
               e_cause: 0,
-            };
-            mqttClient.publish(
-              srvTopic,
-              JSON.stringify(doneMessage),
-              message_options
-            );
+            });
           });
           break;
         default:
@@ -329,33 +284,27 @@ class ProactiveBot extends ActivityHandler {
   }
 
   async updateConversationReference(context) {
-    //check if its related to the bot?
-    console.log("Conversation update..");
-
     const activity = context.activity;
+    const teamName = activity.channelData.team.name
 
+    // wee need to do it differently, since the team data is deleted / hidden from the bot
     if (activity.channelData.eventType === "teamDeleted") {
-      console.log("team deleted");
       for (const channelId of Object.keys(
         this.channels[activity.channelData.team.name]
       )) {
         delete this.conversationReferences[channelId];
       }
-      console.log("references deleted");
-      delete this.channels[activity.channelData.team.name];
-      console.log("channels deleted");
+      delete this.channels[teamName];
       this.saveConversations();
       this.saveChannels();
       return;
     }
     if (activity.channelData.eventType === "teamMemberRemoved") {
       if (activity.membersRemoved[0].id.includes(this.appId)) {
-        console.log(this.channels[activity.channelData.team.name]);
         for (var channelId of Object.keys(
-          this.channels[activity.channelData.team.name]
+          this.channels[teamName]
         )) {
           delete this.conversationReferences[channelId];
-          console.log(`deleted ${channelId}`);
         }
         delete this.channels[activity.channelData.team.name];
       }
@@ -367,44 +316,68 @@ class ProactiveBot extends ActivityHandler {
     const conversationReference = TurnContext.getConversationReference(
       activity
     );
-    var teamInfo = await TeamsInfo.getTeamDetails(context);
 
     switch (activity.channelData.eventType) {
+      case "teamRenamed":
+        // ids stay the same but wee need to update the team name in channels
+        // lets use the current teams channels to see which of those are registered
+        var teamChannels = await TeamsInfo.getTeamChannels(context);
+        var oldTeamName = undefined;
+
+        teamChannels.every((channel) => {
+          if (oldTeamName) return false;
+
+          Object.keys(this.channels).forEach((currentTeamName) => {
+            if (oldTeamName) return;
+
+            var currentChannels = this.channels[currentTeamName];
+            Object.keys(currentChannels).forEach((currrentChannelId) => {
+              console.log('3');
+              console.log(currrentChannelId);
+              if (channel.id === currrentChannelId) {
+                oldTeamName = currentTeamName;
+                console.log('MATCH');
+                console.log(currentTeamName);
+                return;
+              }
+            })
+          })
+        })
+
+        this.channels[teamName] = this.channels[oldTeamName];
+        delete this.channels[oldTeamName];
+        break;
+
       case "channelRenamed":
-        if (!this.channels[teamInfo.name]) {
-          this.channels[teamInfo.name] = {};
+        if (!this.channels[teamName]) {
+          this.channels[teamName] = {};
         }
-        this.channels[teamInfo.name][activity.channelData.channel.id] =
+        this.channels[teamName][activity.channelData.channel.id] =
           activity.channelData.channel.name;
         break;
 
       case "teamMemberAdded":
-        console.log("adding member");
         if (activity.membersAdded[0].id.includes(this.appId)) {
           this.conversationReferences[
             conversationReference.conversation.id
           ] = conversationReference;
         }
 
-        this.channels[teamInfo.name] = {};
-        this.channels[teamInfo.name][activity.channelData.team.id] =
+        this.channels[teamName] = {};
+        this.channels[teamName][activity.channelData.team.id] =
           "Allgemein";
         break;
 
       case "channelDeleted":
-        console.log("channel deleted");
-        if (!this.channels[teamInfo.name]) {
+        if (!this.channels[teamName]) {
           return;
         }
-        delete this.channels[teamInfo.name][activity.channelData.channel.id];
-        delete this.conversationReferences[
-          conversationReference.conversation.id
-        ];
+        delete this.channels[teamName][activity.channelData.channel.id];
+        delete this.conversationReferences[activity.channelData.channel.id];
         break;
     }
     this.saveConversations();
     this.saveChannels();
-    console.log("all saved!");
   }
 
   async addConversation(context) {
@@ -485,7 +458,7 @@ class ProactiveBot extends ActivityHandler {
         throw err;
       }
     });
-    console.log(Object.keys(this.conversationReferences));
+    // console.log(Object.keys(this.conversationReferences));
   }
   saveChannels() {
     const data = JSON.stringify(this.channels);
@@ -512,6 +485,9 @@ class ProactiveBot extends ActivityHandler {
       }
     }
 
+    var message = "Aktuell sind die folgenden Kanäle als Alarm-Target verfügbar."
+    if (facts.length === 0) message = "Es sind noch keine Kanäle als Alarm-Targets registriet."
+
     var template = new ACData.Template({
       // Card Template JSON
 
@@ -525,8 +501,7 @@ class ProactiveBot extends ActivityHandler {
         },
         {
           type: "TextBlock",
-          text:
-            "Aktuell sind die folgenden Kanäle registriert und als Alarm-Target verfügbar.",
+          text: message,
           wrap: true,
         },
         {
@@ -612,40 +587,36 @@ class ProactiveBot extends ActivityHandler {
         redisClient.set(alarmData.id, JSON.stringify(alarmData));
 
         // confirm notification
-        const notificationConfirmation = {
+        postMessage({
           e_type: "IND",
           e_name: "Notified",
-          e_from: botTopic,
-          e_id: Date.now(),
           a_id: alarmData.id,
           t_id: alarmData.targetId,
-        };
-
-        mqttClient.publish(
-          srvTopic,
-          JSON.stringify(notificationConfirmation),
-          message_options
-        );
+        });
       }
     );
   }
 
   unregister() {
-    const deregistration_message = {
+    postMessage({
       e_type: "IND",
       e_name: "Unregister",
-      e_from: "pointomega/redone/mod/RO-Bot",
-      e_id: 1,
-      m_name: "RO-Bot",
       m_role: "1",
-    };
-
-    mqttClient.publish(
-      srvTopic,
-      JSON.stringify(deregistration_message),
-      message_options
-    );
+    });
   }
+}
+
+function postMessage(message) {
+
+  message.e_from = botTopic;
+  message.e_id = Date.now() / 1000;
+  message.m_name = botName;
+
+  mqttClient.publish(
+      srvTopic,
+      JSON.stringify(message),
+      { qos: 1 }
+    );
 }
 
 module.exports.ProactiveBot = ProactiveBot;
