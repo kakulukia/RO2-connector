@@ -4,18 +4,23 @@ Der RedOne (RO) Teams Bot kann sowohl Alarme in einen Teams-Kanal senden als auc
 
 ## Installation
 
-Node version v14.16.0 oder höher sollte installiert sein.
-Für die Kapselung vom restlichen System, empfelhen wir n, ein Managr für verschiedene, gleichzeitig installierte Node-Versionen.
+- Python
+- Redis
+- Node
+
+Eine Abhängigkeit des Projekts ist Node-Gyp, welches wiederum Python für die Installation benötigt (https://www.python.org/downloads/).
+Des Weiteren wird Redis als Datenbank verwendet. Redis kann über die gängigen Paketmanager installiert oder [hier heruntergeladen](https://redis.io/download) werden.
+
+Node Version v14.16.0 oder höher sollte installiert sein.
+Für die Kapselung vom restlichen System, empfehlen wir n, ein Manager für verschiedene, gleichzeitig installierte Node-Versionen.
 
 Der Bot wurde mit den Node Versionen v14.16.0 LTS und v15.10.0 getestet.
-
-Eine Abhängigkeit des Projekts ist Node-Gyp, welches wiederum Python für die Installation benötigt.
 
 https://github.com/mklement0/n-install
 
 Danach kann via `n install 15.10.0` die benötigte Version installiert werden, ohne vorher durch den Paketmanager des System eine veraltete Version installieren zu müssen.
 
-Up die Abhängigkeiten des RO-Bots zu installieren, bitte im Projektverzeichnis folgendes Kommando ausführen:
+Um die Abhängigkeiten des RO-Bots zu installieren, bitte im Projektverzeichnis folgendes Kommando ausführen:
 
 ```bash
 npm install
@@ -33,7 +38,11 @@ Um den RO-Bot als Dienst laufen zu lassen, empfehlen wir pm2. Eine ausführliche
 
 PM2 kümmer sich zuverlässig um Autostart, Neustart bei Absturz des Bots sowie Logging und eine Ansicht zur Ressourcenauslatung.
 
-## Hinzufügen des RedOne Teams Bots zur eigenen Teams-Ungebung
+```bash
+pm2 start index.js --name "RedOne Teams Bot"
+```
+
+## Hinzufügen des RedOne Teams Bots zur eigenen Teams-Umgebung
 
 Voraussetzungen hierfür:
 
