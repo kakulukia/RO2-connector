@@ -285,7 +285,11 @@ class ProactiveBot extends ActivityHandler {
 
   async updateConversationReference(context) {
     const activity = context.activity;
-    const teamName = activity.channelData.team.name
+    var teamName = activity.channelData.team.name;
+
+    if (!teamName) {
+      teamName = (await TeamsInfo.getTeamDetails(context)).name;
+    }
 
     // wee need to do it differently, since the team data is deleted / hidden from the bot
     if (activity.channelData.eventType === "teamDeleted") {
