@@ -4,8 +4,10 @@ Der RedOne (RO) Teams Bot kann sowohl Alarme in einen Teams-Kanal senden als auc
 
 ## Installation
 
-Node version v15.10.0 oder höher sollte installiert sein.
+Node version v14.16.0 oder höher sollte installiert sein.
 Für die Kapselung vom restlichen System, empfelhen wir n, ein Managr für verschiedene, gleichzeitig installierte Node-Versionen.
+
+Der Bot wurde mit den Node Versionen v14.16.0 LTS und v15.10.0 .
 
 https://github.com/mklement0/n-install
 
