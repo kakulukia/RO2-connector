@@ -1,6 +1,6 @@
 # RO-Bot
 
-Der RedOne (RO) Teams Bot kann sowohl Alarme in einen Teams-Kanal senden als auch die Rückantwort (Annahme / Erledigung der Alarme) mit RedOne abgleichen.
+Der RedOne Teams Bot (RO-Bot) kann sowohl Alarme in einen Teams-Kanal senden als auch die Rückantwort (Annahme / Erledigung der Alarme) mit RedOne abgleichen.
 
 ## Installation
 
@@ -8,11 +8,11 @@ Der RedOne (RO) Teams Bot kann sowohl Alarme in einen Teams-Kanal senden als auc
 - Redis
 - Node
 
-Eine Abhängigkeit des Projekts ist Node-Gyp, welches wiederum Python für die Installation benötigt (https://www.python.org/downloads/).
-Des Weiteren wird Redis als Datenbank verwendet. Redis kann über die gängigen Paketmanager installiert oder [hier heruntergeladen](https://redis.io/download) werden.
+Eine Abhängigkeit des Projekts ist Node-Gyp, welches Python für die Installation benötigt (https://www.python.org/downloads/).
+Redis wird als Datenbank verwendet. Redis kann über die gängigen Paketmanager installiert oder [hier heruntergeladen](https://redis.io/download) werden.
 
 Node Version v14.16.0 oder höher sollte installiert sein.
-Für die Kapselung vom restlichen System, empfehlen wir n, ein Manager für verschiedene, gleichzeitig installierte Node-Versionen.
+Für die Kapselung vom restlichen System, empfehlen wir "n". Das ist ein Manager für verschiedene, gleichzeitig installierte Node-Versionen.
 
 Der Bot wurde mit den Node Versionen v14.16.0 LTS und v15.10.0 getestet.
 
@@ -44,7 +44,7 @@ pm2 start index.js --name "RedOne Teams Bot"
 
 ## Hinzufügen des RedOne Teams Bots zur eigenen Teams-Umgebung
 
-Voraussetzungen hierfür:
+Voraussetzungen:
 
 1. [Visual Studio Code](https://code.visualstudio.com/Download)
 2. VS Code Plugin: [Microsoft Teams Toolkit](https://marketplace.visualstudio.com/items?itemName=TeamsDevApp.ms-teams-vscode-extension)
@@ -60,12 +60,12 @@ Die folgenden Anweisungen beziehen sich auf die Inhalte des neuen MS Teams Menü
 6. Über die Menüpunkte "Open Microsoft Teams Toolkit" >> "Bots" >> "Existing bot registrations" können die weiteren Details des Bots bearbeitet werden. Bitte den eben erstellten Bot auswählen und dann in "Bot endpoint address" die öffentlich erreichbare HTTPS-Adresse des Bots eintragen. Die Adresse muss dabei folgendem Format entsprechen: `https://<domain>/api/messages`
    (für Tests kann das Tool [ngrok](https://ngrok.com/) genutzt werden, dass einen beliebigen lokalen Port öffenlich verfügbar machen kann)
 7. Über den Menüpunkt "Download publishing package" bitte die Zip-Datei herunterladen.
-8. In Teams links unten unter "Apps" nach unten scrollen. Mit der passenden Berechtigung, gibt es dort den Manüpunkt "Benutzerdefinierte App hochladen". Nach einem Klick darauf, erscheint der Punkt "Für <Organisation> hochladen".
-9. Hier bitte das soeben runtergeladene App-Manifest hochladen und damit für die eigene Organisation zur Verfügung stellen.
+8. In Teams links unten unter "Apps" nach unten scrollen. Mit der passenden Berechtigung, gibt es dort den Menüpunkt "Benutzerdefinierte App hochladen". Nach einem Klick darauf, erscheint der Punkt "Für <Organisation> hochladen".
+9. Hier das soeben runtergeladene App-Manifest hochladen und damit für die eigene Organisation zur Verfügung stellen.
 10. Der Bot kann anschließend zu den gewünschten Teams hinzugefügt werden.
 
 Beim hinzufügen existiert zwar die Möglichkeit, den Bot direkt bei bestimmten Kanälen eines Teams hinzuzufügen. Diese Funktion ist aber von MS noch nicht richtig implementiert, sodass der Bot immer in den Kanal "Allgemein" eingeladen wird.
 Anschließend kann über eine Nachricht im gewünschten Kanal der Bot für eben diesen registriert werden. Der Bot muss direkt angesprochen werden, damit Teams die Nachricht an ihn sendet.
 
-Die benötigte Nachricht lautet zur Registrierung des Kanals lautet: "@<Botname> add".
+Die benötigte Nachricht zur Registrierung des Kanals lautet: "@<Botname> add".
 Der Bot wird diese Nachricht bestätigen und dabei die ID des Kanals mit ausgeben, welche für den RedOne benötigt wird.
